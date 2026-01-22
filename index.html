@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="fr">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Harpon XR - SAE</title>
+		<link rel="stylesheet" href="/src/styles/style.css" />
+		<script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+	</head>
+	<body>
+		<!-- Scène A-Frame de base (VR/AR auto-détecté) -->
+		<a-scene>
+
+			<a-assets>
+				<a-asset-item id="koiModel" src="/assets/models/koi_fish.glb"></a-asset-item>
+				<a-asset-item id="spearModel" src="/assets/models/stylized_low-poly_spear.glb"></a-asset-item>
+			</a-assets>
+
+			<a-entity light="type: ambient; color: #ffffff; intensity: 1.0"></a-entity>
+			<a-entity light="type: directional; color: #ffffff; intensity: 0.6" position="-1 2 1"></a-entity>
+
+				<!-- Fallback sky (visible on desktop). It will be hidden when entering VR/AR so passthrough shows through) -->
+				<a-sky id="fallbackSky" color="#03203c"></a-sky>
+
+			<!-- Camera rig with controllers -->
+			<a-entity id="cameraRig" position="0 1.6 0">
+				<a-entity id="camera" camera="near: 0.01; far: 2000" look-controls position="0 0 0"></a-entity>
+
+				<!-- Left hand (free / lamp placeholder) -->
+				<a-entity id="leftHand" oculus-touch-controls="hand: left" raycaster="objects: .ui" 
+									position="-0.3 -0.2 -0.5">
+				</a-entity>
+
+<!-- Right hand controller for grabbing -->
+			<a-entity id="rightHand" oculus-touch-controls="hand: right" fishing-rod
+								position="0.3 -0.2 -0.5">
+			</a-entity>
+		</a-entity>
+
+		<!-- Harpoon floating in scene - grab with grip button -->
+		<a-entity id="harpoon" position="0 1.4 -1.2" class="grabbable">
+			<a-entity gltf-model="#spearModel" scale="0.5 0.5 0.5" rotation="0 180 0"></a-entity>
+			</a-entity>
+
+
+
+			<!-- Spawner entity : attendra l'événement start-spawning -->
+			<a-entity id="fishSpawner" fish-spawner="count: 8"></a-entity>
+
+			<!-- Water-visual retiré pour AR -->
+
+			<script type="module" src="/src/main.js"></script>
+
+			<!-- Start AR button / fallback logic -->
+			<script>
+			  (function(){
+			    const scene = document.querySelector('a-scene');
+			    if (!scene) return;
+			    // XR debug: log mode and renderer state
+			    scene.addEventListener('enter-vr', () => {
+			      console.log('enter-vr event. scene.is("ar-mode")=', scene.is && scene.is('ar-mode'));
+			      try { console.log('renderer.xr.isPresenting=', scene.renderer && scene.renderer.xr && scene.renderer.xr.isPresenting); } catch (e) {}
+			    });
+			    scene.addEventListener('exit-vr', () => { console.log('exit-vr event.'); });
+			    // Also print state every few seconds while connected
+			    setInterval(() => {
+			      try { console.log('XR debug - isAR:', scene.is && scene.is('ar-mode'), 'rendererPresenting:', scene.renderer && scene.renderer.xr && scene.renderer.xr.isPresenting); } catch (e) {}
+			    }, 5000);
+			
+			    // create Start AR button if device supports immersive-ar
+			    async function createButton() {
+			      if (!navigator.xr || !navigator.xr.isSessionSupported) return;
+			      try {
+			        const supported = await navigator.xr.isSessionSupported('immersive-ar');
+			        if (!supported) return;
+			        const btn = document.createElement('button');
+			        btn.id = 'startAR';
+			        btn.textContent = 'Start AR';
+			        Object.assign(btn.style, { position: 'absolute', bottom: '18px', left: '50%', transform: 'translateX(-50%)', padding: '12px 18px', fontSize: '16px', zIndex: 1000 });
+			        document.body.appendChild(btn);
+			        btn.addEventListener('click', async () => {
+			          try {
+			            const session = await navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['hit-test', 'local-floor'] });
+			            // set session on three renderer used by A-Frame
+			            const renderer = scene.renderer;
+			            if (renderer && renderer.xr && renderer.xr.setSession) {
+			              await renderer.xr.setSession(session);
+			            } else {
+			              // fallback: let A-Frame handle enterVR
+			              await scene.enterVR();
+			            }
+			            // emit start spawning after session established
+			            const spawner = document.getElementById('fishSpawner');
+			            if (spawner) spawner.emit('start-spawning');
+			            btn.style.display = 'none';
+			          } catch (e) {
+			            console.error('Failed to start AR session', e);
+			            alert('Impossible d\'entrer en AR — voir la console du navigateur.');
+			          }
+			        });
+			      } catch (e) {
+			        console.warn('AR support check failed', e);
+			      }
+			    }
+			
+			    createButton();
+			  })();
+			</script>
+		</a-scene>
+	</body>
+</html>
