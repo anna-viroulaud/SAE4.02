@@ -1,31 +1,60 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="utf-8">
-    <title>Quest 3 - Grab the Box</title>
+    <title>Quest 3 XR - Inondation Réaliste</title>
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v6.1.1/dist/aframe-extras.misc.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v6.1.1/dist/aframe-extras.min.js"></script>
     <script src="https://unpkg.com/super-hands@^3.0.3/dist/super-hands.min.js"></script>
 </head>
 
 <body>
-    <a-scene webxr="optionalFeatures: hit-test, local-floor, layers">
-        
-        <a-entity sphere-collider="objects: a-box" super-hands hand-controls="hand: left"></a-entity>
-        <a-entity sphere-collider="objects: a-box" super-hands hand-controls="hand: right"></a-entity>
+    <a-scene webxr="optionalFeatures: hit-test, local-floor, layers" 
+             renderer="colorManagement: true; alpha: true"
+             fog="type: exponential; color: #0055ff; density: 0">
 
-        <a-box 
-            class="clickable"
-            hoverable grabbable
-            position="1 1.2 -2" 
-            rotation="0 45 0" 
-            width="0.5" height="0.5" depth="0.5"
-            material="color: #0074D9; metalness: 0.8; roughness: 0.2"
-            animation="property: rotation; to: 0 405 0; loop: true; dur: 6000; pauseEvents: grab-start; resumeEvents: grab-end">
+        <a-assets>
+            <a-asset-item id="koi" src="assets/models/koi_fish.glb"></a-asset-item>
+        </a-assets>
+
+        <a-box id="water-volume" 
+            width="60" depth="60" height="1" position="0 0.5 0"
+            material="color: #0055ff; transparent: true; opacity: 0.5; side: double; depthWrite: false; metalness: 0.5; roughness: 0.2"
+            animation__scale="property: scale; from: 1 0.1 1; to: 1 30 1; dur: 25000; easing: linear; autoplay: true"
+            animation__pos="property: position; from: 0 0.05 0; to: 0 15 0; dur: 25000; easing: linear; autoplay: true"
+            animation__fog="property: fog.density; from: 0; to: 0.25; dur: 25000; easing: linear; autoplay: true">
         </a-box>
 
-        <a-light type="spot" color="#00ffff" intensity="2" position="0 4 0" rotation="-90 0 0" angle="45"></a-light>
-        <a-light type="ambient" color="#111144"></a-light>
+        <a-plane width="60" height="60" rotation="-90 0 0"
+            material="color: #44ccff; transparent: true; opacity: 0.6; side: double" 
+            position="0 0.1 0"
+            animation="property: position; from: 0 0.1 0; to: 0 30 0; dur: 25000; easing: linear; autoplay: true">
+        </a-plane>
+
+        <a-entity position="0 0 -1">
+            <a-sphere color="white" radius="0.01" opacity="0.5" position="0.5 0 -0.5"
+                animation="property: position; to: 0.5 20 -0.5; dur: 10000; loop: true; easing: linear">
+            </a-sphere>
+            <a-sphere color="white" radius="0.005" opacity="0.3" position="-0.3 0 -0.2"
+                animation="property: position; to: -0.3 20 -0.2; dur: 12000; loop: true; easing: linear; delay: 1000">
+            </a-sphere>
+        </a-entity>
+
+        <a-entity id="leftHand" hand-controls="hand: left" sphere-collider="objects: .fish; radius: 0.05"
+            super-hands></a-entity>
+        <a-entity id="rightHand" hand-controls="hand: right" sphere-collider="objects: .fish; radius: 0.05"
+            super-hands></a-entity>
+
+        <a-entity class="fish" gltf-model="#koi" position="0 1.1 -0.4" rotation="0 45 0" scale="1 1 1"
+            hoverable grabbable stretchable draggable droppable
+            animation="property: position; to: 0 1.5 -0.4; dir: alternate; dur: 3000; loop: true; pauseEvents: grab-start; resumeEvents: grab-end">
+        </a-entity>
+
+        <a-light type="ambient" color="#4488ff" intensity="0.2"
+            animation="property: intensity; from: 0.2; to: 1.5; dur: 25000; easing: linear">
+        </a-light>
+        <a-light type="directional" color="#00ffff" intensity="0.5" position="1 3 1"></a-light>
 
     </a-scene>
 </body>
