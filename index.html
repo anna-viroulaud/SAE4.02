@@ -1,45 +1,32 @@
 <!DOCTYPE html>
 <html>
-
 <head>
     <meta charset="utf-8">
-    <title>Quest 3 - Blue XR Experience</title>
+    <title>Quest 3 - Grab the Box</title>
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v6.1.1/dist/aframe-extras.misc.min.js"></script>
+    <script src="https://unpkg.com/super-hands@^3.0.3/dist/super-hands.min.js"></script>
 </head>
 
 <body>
-    <a-scene webxr="optionalFeatures: hit-test, local-floor, layers" renderer="foveationLevel: 3">
+    <a-scene webxr="optionalFeatures: hit-test, local-floor, layers">
+        
+        <a-entity sphere-collider="objects: a-box" super-hands hand-controls="hand: left"></a-entity>
+        <a-entity sphere-collider="objects: a-box" super-hands hand-controls="hand: right"></a-entity>
 
-        <a-assets>
-        </a-assets>
-        <a-entity camera look-controls>
-            <a-sphere radius="0.1"
-                material="color: #0000ff; opacity: 0.35; transparent: true; shader: flat; side: back">
-            </a-sphere>
-        </a-entity>
-
-        <a-sphere position="0 1.5 -1.5" radius="0.3"
-            material="color: #00ffff; emissive: #00ffff; emissiveIntensity: 2; opacity: 0.7; transparent: true"
-            animation="property: position; dir: alternate; dur: 2000; easing: easeInOutSine; loop: true; to: 0 1.7 -1.5">
-        </a-sphere>
-
-        <a-box position="1 1.2 -2" rotation="0 45 0" width="0.5" height="0.5" depth="0.5"
+        <a-box 
+            class="clickable"
+            hoverable grabbable
+            position="1 1.2 -2" 
+            rotation="0 45 0" 
+            width="0.5" height="0.5" depth="0.5"
             material="color: #0074D9; metalness: 0.8; roughness: 0.2"
-            animation="property: rotation; to: 0 405 0; loop: true; dur: 6000">
+            animation="property: rotation; to: 0 405 0; loop: true; dur: 6000; pauseEvents: grab-start; resumeEvents: grab-end">
         </a-box>
 
         <a-light type="spot" color="#00ffff" intensity="2" position="0 4 0" rotation="-90 0 0" angle="45"></a-light>
         <a-light type="ambient" color="#111144"></a-light>
 
     </a-scene>
-
-    <script>
-        // Petit script pour s'assurer que le bouton AR s'affiche bien sur Quest
-        const scene = document.querySelector('a-scene');
-        scene.addEventListener('enter-vr', () => {
-            console.log("Entrée en mode XR sur Quest 3");
-        });
-    </script>
 </body>
-
 </html>
