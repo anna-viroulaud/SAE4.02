@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jeu de Pêche XR - SAE 4.02</title>
+
+  <!-- A-Frame -->
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+
+  <!-- GSAP pour les animations fluides -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+  </style>
+</head>
+
+<body>
+  <a-scene>
+    <!-- Système de caméra avec curseur pour les interactions souris/VR -->
+    <a-entity id="camera-rig" position="0 1.6 0">
+      <a-camera>
+        <a-cursor color="#FFFFFF" raycaster="objects: .collidable"></a-cursor>
+      </a-camera>
+    </a-entity>
+
+    <!-- Ciel bleu clair -->
+    <a-sky color="#B0E0F6"></a-sky>
+
+    <!-- Soleil supprimé -->
+
+    <!-- Volume d'eau invisible (juste pour la détection) -->
+    <a-box id="water-volume" position="0 0 0" width="50" height="0.1" depth="50"
+      material="color: #1a7fbf; opacity: 0; transparent: true; visible: false" class="collidable">
+    </a-box>
+
+    <!-- Surface de l'eau avec vagues (plan animé) -->
+    <a-plane id="water-surface" position="0 0.05 0" rotation="-90 0 0" width="50" height="50"
+      material="color: #1a7fbf; opacity: 0.75; transparent: true; metalness: 0.95; roughness: 0.05; side: double"
+      class="collidable">
+    </a-plane>
+
+    <!-- Spotlights sous-marins supprimés (activés visuellement via JS supprimé) -->
+
+    <!-- Spotlight solaire supprimé -->
+
+    <!-- Spotlights 'sunray-*' supprimés -->
+
+    <!-- Lumière ambiante bleutée pour atmosphère sous-marine -->
+    <a-entity light="type: ambient; color: #4488aa; intensity: 0.6"></a-entity>
+
+    <!-- Lumière directionnelle douce venant du haut avec ombres -->
+    <a-entity light="type: directional; color: #ffffdd; intensity: 0.8; castShadow: true" position="5 10 3"
+      rotation="-45 0 0"></a-entity>
+
+    <!-- Overlay bleu pour effet sous l'eau (initialement invisible) -->
+    <a-entity id="underwater-overlay" position="0 1.6 0">
+      <a-sphere radius="0.5" material="color: #0066aa; opacity: 0; transparent: true; side: back; shader: flat"
+        id="underwater-sphere">
+      </a-sphere>
+    </a-entity>
+
+  </a-scene>
+
+  <!-- Script pour l'effet d'eau avec Three.js et GSAP -->
+  <script src="js/water-effect.js"></script>
+</body>
+
+</html>
