@@ -576,22 +576,30 @@ AFRAME.registerComponent('fish-spawner', {
     for (let i = 0; i < this.data.count; i++) {
       const fish = document.createElement('a-entity');
       // Replace placeholder box with one of the real glTF fish models
-      const models = ['#low_poly_fish', '#fish_fish', '#fish_1', '#fish_2', '#fish_bubbles', '#goldfish', '#piranha'];
+      const models = ['#low_poly_fish', '#fish_fish', '#fish_1', '#fish_2', '#nemo', '#goldfish', '#piranha'];
       const chosen = models[Math.floor(Math.random() * models.length)];
       fish.setAttribute('gltf-model', chosen);
-      // Apply a small random uniform scale so models vary slightly
-      // Reduce fish visual scale by ~6x then divide by 2 again per user request
-      // Original base was ~0.6-1.2; dividing by 12 yields ~0.05-0.1
-      // Further reduce fish scale by 6x as requested: divide previous base by 6
-      // Previous base was (0.6 + rand*0.6)/12 => ~0.05-0.10; dividing by 6 yields ~0.0083-0.0167
-      const baseScale = (0.6 + Math.random() * 0.6) / 72.0; // ~0.0083 - 0.0167
-      // Per-model adjustments: keep `#goldfish` at current size (1×),
-      // make `#fish_fish` (Fish.glb) half-size (0.5×), and multiply all other
-      // models by 2× as requested.
-      const defaultMultiplier = 2.0;
+      // Apply a small random uniform scale so models vary slightly.
+      // Use a clearer base scale (≈0.05 - 0.10) and per-model multipliers.
+      // Keep default models doubled, but reduce Fish.glb and Goldfish slightly.
+      const baseScale = (0.6 + Math.random() * 0.6) / 12.0; // ~0.05 - 0.10
+      // Reduce the general multiplier so most fishes are only slightly larger
+      const defaultMultiplier = 1.2; // slightly bigger than base
+      // Per-model adjustments: make Fish.glb small (~0.2), reduce goldfish further (÷2 of previous),
+      // and enlarge Fish_2 and Fish_Bubbles which were too small.
       const modelScaleAdjust = {
-        '#goldfish': 1.0,
-        '#fish_fish': 0.5
+        // Adjusted per latest request:
+        // goldfish ×2 from 0.05 -> 0.1
+        // fish_bubbles ×3 from 2.0 -> 6.0
+        // fish_2 ×3 from 0.6 -> 1.8
+        // fish_1 reduced by another factor 3 from 0.3333 -> ~0.1111
+        '#goldfish': 0.1,
+        '#fish_fish': 0.2,
+        '#fish_1': 0.1111111,
+        // Increased again per request (was 5.4 -> now 10.8)
+        '#fish_2': 10.8,
+        // Nemo: increase size for better visibility (≈ base × 2.5)
+        '#nemo': 2.5
       };
       const adjust = (modelScaleAdjust.hasOwnProperty(chosen)) ? modelScaleAdjust[chosen] : defaultMultiplier;
       const finalScale = baseScale * adjust;

@@ -69,12 +69,15 @@ AFRAME.registerComponent('room-detection', {
           ? new URLSearchParams(window.location.search)
           : null;
         const allowParam = urlParams ? (urlParams.get('allowTest') === '1' || urlParams.get('allowTest') === 'true') : false;
-        const allowTest = this.data.enableTest || allowParam;
+        // Détecter l'absence de WebXR : si navigator est défini mais ne contient pas 'xr'
+        const noXR = !(typeof navigator !== 'undefined' && 'xr' in navigator);
+        // Autoriser le mode test si explicitement demandé, via param URL, ou si WebXR est absent (dev PC)
+        const allowTest = this.data.enableTest || allowParam || noXR;
 
         if (!allowTest) return; // pas d'émission automatique de test
 
-        // N'émettre des données de test que si WebXR est absent (PC dev)
-        if ('xr' in navigator) return;
+        // N'émettre des données de test uniquement si WebXR est réellement absent
+        if (!noXR) return;
       } catch (e) {
         // ignore
         return;
@@ -121,6 +124,33 @@ AFRAME.registerComponent('room-detection', {
     // Créer une boîte de visualisation pour le mode test
     this.createTestBoundingBox(testData);
     
+    // Créer au moins une entrée floorPlanes pour alimenter l'UI de scan
+    try {
+      const fakeFloor = {
+        plane: null,
+        data: {
+          bounds: testData.bounds,
+          polygon: [
+            { x: testData.bounds.minX, y: testData.floorY, z: testData.bounds.minZ },
+            { x: testData.bounds.maxX, y: testData.floorY, z: testData.bounds.minZ },
+            { x: testData.bounds.maxX, y: testData.floorY, z: testData.bounds.maxZ },
+            { x: testData.bounds.minX, y: testData.floorY, z: testData.bounds.maxZ }
+          ],
+          pose: { transform: { matrix: [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1] } },
+          dimensions: { width: testData.width, depth: testData.depth, area: testData.width * testData.depth }
+        }
+      };
+      this.floorPlanes = [fakeFloor];
+      this.floorY = testData.floorY;
+      // Ajouter quelques points de hit pour donner l'impression d'un scan actif
+      this.hitSurfaces.set('test_0', { position: { x: testData.centerX, y: testData.floorY, z: testData.centerZ } });
+    } catch (e) {
+      // ignore
+    }
+
+    // Mettre à jour l'UI pour afficher immédiatement les surfaces détectées en mode test
+    try { this.updateScanUI(); } catch (e) { /* ignore */ }
+
     this.el.sceneEl.emit('room-scanned', testData);
   },
 
@@ -226,7 +256,9 @@ AFRAME.registerComponent('room-detection', {
     // Créer la box rouge ORIENTÉE comme le sol réel
     const box = document.createElement('a-box');
     box.setAttribute('id', 'spawn-zone-bounds');
-    box.setAttribute('position', `${centerLocal.x} ${data.floorY + height/2} ${centerLocal.z}`);
+    // Utiliser la coordonnée Y calculée depuis la matrice du sol (centerLocal.y)
+    // afin d'aligner correctement la box sur l'axe vertical et éviter un décalage
+    box.setAttribute('position', `${centerLocal.x} ${centerLocal.y + height/2} ${centerLocal.z}`);
     box.setAttribute('rotation', `0 ${rotationY} 0`);
     box.setAttribute('width', width);
     box.setAttribute('height', height);
