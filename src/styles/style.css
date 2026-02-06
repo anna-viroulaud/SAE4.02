@@ -28,6 +28,171 @@
 	z-index: 9999;
 }
 
+/* BOUTON DE DÉMARRAGE */
+#start-game-overlay {
+	position: fixed;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	z-index: 9998;
+}
+
+#start-game-button {
+	display: none;
+	padding: 20px 40px;
+	font-size: 24px;
+	font-weight: bold;
+	background: linear-gradient(135deg, #00ff00, #00cc00);
+	color: #000;
+	border: none;
+	border-radius: 12px;
+	cursor: pointer;
+	box-shadow: 0 4px 15px rgba(0, 255, 0, 0.4);
+	transition: all 0.3s ease;
+}
+
+#start-game-button:hover {
+	transform: scale(1.05);
+	box-shadow: 0 6px 20px rgba(0, 255, 0, 0.6);
+}
+
+/* CHRONOMÈTRE */
+#timer-display {
+	display: none;
+	position: fixed;
+	top: 20px;
+	right: 20px;
+	background: rgba(0, 0, 0, 0.8);
+	color: #FFD700;
+	padding: 15px 30px;
+	font-size: 28px;
+	font-weight: bold;
+	border-radius: 10px;
+	border: 2px solid #FFD700;
+	z-index: 9997;
+	font-family: 'Courier New', monospace;
+}
+
+/* ÉCRAN DE FIN DE PARTIE */
+#end-game-screen {
+	display: none;
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: rgba(0, 0, 0, 0.95);
+	z-index: 10000;
+	justify-content: center;
+	align-items: center;
+}
+
+.end-game-container {
+	background: linear-gradient(135deg, #1a1a2e, #16213e);
+	padding: 40px;
+	border-radius: 20px;
+	max-width: 700px;
+	width: 90%;
+	box-shadow: 0 10px 50px rgba(255, 215, 0, 0.3);
+	border: 3px solid #FFD700;
+}
+
+.end-game-title {
+	text-align: center;
+	color: #FFD700;
+	font-size: 36px;
+	margin-bottom: 30px;
+	text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+.score-table-container {
+	max-height: 400px;
+	overflow-y: auto;
+	margin-bottom: 30px;
+}
+
+.score-table {
+	width: 100%;
+	border-collapse: collapse;
+	background: rgba(255, 255, 255, 0.05);
+	border-radius: 10px;
+	overflow: hidden;
+}
+
+.score-table thead {
+	background: linear-gradient(135deg, #FFD700, #FFA500);
+	color: #000;
+	font-weight: bold;
+}
+
+.score-table th,
+.score-table td {
+	padding: 15px;
+	text-align: left;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.score-table tbody tr {
+	color: #fff;
+	transition: background 0.2s ease;
+}
+
+.score-table tbody tr:hover {
+	background: rgba(255, 255, 255, 0.08);
+}
+
+.bonus-row {
+	background: rgba(255, 215, 0, 0.15) !important;
+}
+
+.normal-row {
+	background: rgba(255, 255, 255, 0.05);
+}
+
+.total-row {
+	background: rgba(255, 215, 0, 0.2) !important;
+	font-weight: bold;
+	font-size: 18px;
+	border-top: 2px solid #FFD700 !important;
+}
+
+.end-game-actions {
+	display: flex;
+	gap: 20px;
+	justify-content: center;
+}
+
+.end-btn {
+	padding: 15px 40px;
+	font-size: 20px;
+	font-weight: bold;
+	border: none;
+	border-radius: 10px;
+	cursor: pointer;
+	transition: all 0.3s ease;
+	box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.replay-btn {
+	background: linear-gradient(135deg, #00ff00, #00cc00);
+	color: #000;
+}
+
+.replay-btn:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 6px 15px rgba(0, 255, 0, 0.5);
+}
+
+.quit-btn {
+	background: linear-gradient(135deg, #e74c3c, #c0392b);
+	color: #fff;
+}
+
+.quit-btn:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 6px 15px rgba(231, 76, 60, 0.5);
+}
+
 /* Rendre la scène/canvas transparente afin que le passthrough du casque soit visible derrière */
 html,
 body,

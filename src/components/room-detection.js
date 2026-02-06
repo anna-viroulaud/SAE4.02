@@ -26,6 +26,7 @@ AFRAME.registerComponent('room-detection', {
     this.detectedPlanes = new Map();
     this.floorPlanes = [];      // Sols (horizontal bas)
     this.ceilingPlanes = [];    // Plafonds (horizontal haut)
+    this.horizontalPlanes = []; // Tous les plans horizontaux (candidats sol/plafond)
     this.wallPlanes = [];       // Murs (vertical)
     this.obstaclePlanes = [];   // Obstacles (tables, meubles - horizontal milieu)
 
@@ -161,14 +162,18 @@ AFRAME.registerComponent('room-detection', {
 
   createSpawnZoneBoundingBox: function(data) {
     // Supprimer uniquement l'ancienne boîte de spawn si elle existe (ne PAS nettoyer les plane visuals)
+    // Remove old spawn visuals if present (box or contour)
     const oldBox = document.querySelector('#spawn-zone-bounds');
-    if (oldBox) {
-      oldBox.parentNode.removeChild(oldBox);
-    }
+    if (oldBox) oldBox.parentNode.removeChild(oldBox);
+    const oldContour = document.querySelector('#spawn-zone-contour');
+    if (oldContour) oldContour.parentNode.removeChild(oldContour);
 
     // Si on a le polygone du sol, calculer les VRAIS bounds à partir des vertices transformés
     if (data.floorPolygon && data.floorPolygon.length >= 3 && data.floorPose) {
+      // calculer la box orientée et afficher une visualisation discrète + contour exact
       this.createBoxFromPolygon(data);
+      // dessiner le contour exact du polygone (fil-de-fer discret)
+      this.createFloorPolygonVisualization(data);
     } else {
       // Sinon, utiliser une box standard (mode test)
       this.createStandardBox(data);
@@ -178,7 +183,7 @@ AFRAME.registerComponent('room-detection', {
   createBoxFromPolygon: function(data) {
     const polygon = data.floorPolygon;
     const pose = data.floorPose;
-    const height = data.height;
+    const height = data.spawnHeight || data.height;
     
     // Transformer tous les vertices avec la matrice du sol
     const matrix = new THREE.Matrix4();
@@ -190,10 +195,12 @@ AFRAME.registerComponent('room-detection', {
     const scale = new THREE.Vector3();
     matrix.decompose(position, quaternion, scale);
     
-    // Convertir quaternion en angles Euler
+    // Convertir quaternion en angles Euler (ordre XYZ)
     const euler = new THREE.Euler();
-    euler.setFromQuaternion(quaternion);
+    euler.setFromQuaternion(quaternion, 'XYZ');
+    const rotationX = THREE.MathUtils.radToDeg(euler.x);
     const rotationY = THREE.MathUtils.radToDeg(euler.y);
+    const rotationZ = THREE.MathUtils.radToDeg(euler.z);
     
     // Calculer les bounds dans l'espace LOCAL du plan (avant transformation)
     let localMinX = Infinity, localMaxX = -Infinity;
@@ -215,6 +222,15 @@ AFRAME.registerComponent('room-detection', {
     // Transformer le centre local en monde
     const centerLocal = new THREE.Vector3(localCenterX, 0, localCenterZ);
     centerLocal.applyMatrix4(matrix);
+    
+    // Calculer le Y réel du sol en prenant le Y moyen des vertices transformés
+    let sumY = 0;
+    polygon.forEach(v => {
+      const vec = new THREE.Vector3(v.x, v.y, v.z);
+      vec.applyMatrix4(matrix);
+      sumY += vec.y;
+    });
+    const realFloorY = sumY / polygon.length;
     
     // Calculer les bounds RÉELS en monde (pour les collisions)
     let realMinX = Infinity, realMaxX = -Infinity;
@@ -252,27 +268,33 @@ AFRAME.registerComponent('room-detection', {
     // Stocker la matrice de transformation du plan (local -> world) et son inverse
     data.orientedBox.matrix = matrix.clone();
     data.orientedBox.inverseMatrix = new THREE.Matrix4().copy(matrix).invert();
+    // Inclure la hauteur/position réelle du sol pour que d'autres composants puissent s'aligner
+    data.floorY = realFloorY;
+    data.orientedBox.centerY = realFloorY + height / 2;
     
     // Créer la box rouge ORIENTÉE comme le sol réel
     const box = document.createElement('a-box');
     box.setAttribute('id', 'spawn-zone-bounds');
-    // Utiliser la coordonnée Y calculée depuis la matrice du sol (centerLocal.y)
-    // afin d'aligner correctement la box sur l'axe vertical et éviter un décalage
-    box.setAttribute('position', `${centerLocal.x} ${centerLocal.y + height/2} ${centerLocal.z}`);
-    box.setAttribute('rotation', `0 ${rotationY} 0`);
+    // Utiliser realFloorY (moyenne des Y des vertices transformés) pour positionner correctement
+    // La base sera à realFloorY, le centre à realFloorY + height/2
+    box.setAttribute('position', `${centerLocal.x} ${realFloorY + height/2} ${centerLocal.z}`);
+    // CORRECTION: Utiliser les 3 axes de rotation pour un alignement parfait avec le sol
+    box.setAttribute('rotation', `${rotationX} ${rotationY} ${rotationZ}`);
     box.setAttribute('width', width);
     box.setAttribute('height', height);
     box.setAttribute('depth', depth);
-    box.setAttribute('material', 'color: #ff0000; opacity: 0.3; transparent: true; wireframe: true; side: double');
+    // rendre la box discrète : couleur violette faible en opacité, filaire
+    box.setAttribute('material', 'color: #8a2be2; opacity: 0.06; transparent: true; wireframe: true; side: double');
     box.setAttribute('geometry', 'primitive: box');
     
-    console.log('📦 ZONE ROUGE créée avec rotation du sol :');
-    console.log(`   Position: (${centerLocal.x.toFixed(2)}, ${(data.floorY + height/2).toFixed(2)}, ${centerLocal.z.toFixed(2)})`);
-    console.log(`   Rotation Y: ${rotationY.toFixed(1)}°`);
-    console.log(`   Dimensions locales: ${width.toFixed(2)}m x ${depth.toFixed(2)}m`);
+    console.log('📦 ZONE (violet) créée avec rotation du sol :');
+    console.log(`   Position centre: (${centerLocal.x.toFixed(2)}, ${(realFloorY + height/2).toFixed(2)}, ${centerLocal.z.toFixed(2)})`);
+    console.log(`   Rotation X: ${rotationX.toFixed(1)}° | Y: ${rotationY.toFixed(1)}° | Z: ${rotationZ.toFixed(1)}°`);
+    console.log(`   Dimensions: ${width.toFixed(2)}m (L) x ${height.toFixed(2)}m (H) x ${depth.toFixed(2)}m (P)`);
+    console.log(`   Sol Y calculé: ${realFloorY.toFixed(2)}m | Plafond Y: ${(realFloorY + height).toFixed(2)}m`);
     console.log(`   Bounds monde X: ${realMinX.toFixed(2)} à ${realMaxX.toFixed(2)}`);
     console.log(`   Bounds monde Z: ${realMinZ.toFixed(2)} à ${realMaxZ.toFixed(2)}`);
-    console.log('   ✅ Poissons utiliseront bounds monde pour collisions');
+    console.log('   ✅ Boîte orientée sur les 3 axes pour coller au sol');
     
     this.el.sceneEl.appendChild(box);
   },
@@ -280,13 +302,13 @@ AFRAME.registerComponent('room-detection', {
   createFloorPolygonVisualization: function(data) {
     const polygon = data.floorPolygon;
     const pose = data.floorPose;
-    const height = data.height;
+    const height = data.spawnHeight || data.height;
     
     console.log('📦 Création visualisation EXACTE basée sur polygone du sol (', polygon.length, 'vertices)');
     
-    // Créer une entité pour contenir la visualisation
+    // Créer une entité pour contenir la visualisation (contour)
     const container = document.createElement('a-entity');
-    container.setAttribute('id', 'spawn-zone-bounds');
+    container.setAttribute('id', 'spawn-zone-contour');
     
     // Matrice de transformation du sol
     const matrix = new THREE.Matrix4();
@@ -305,9 +327,9 @@ AFRAME.registerComponent('room-detection', {
       new THREE.Vector3(p.x, p.y + height, p.z)
     );
     
-    // 3. Dessiner les contours horizontaux (sol et plafond) EN ROUGE
-    this.drawPolygonLoop(bottomPoints, container, '#ff0000', 1.0);
-    this.drawPolygonLoop(topPoints, container, '#ff0000', 1.0);
+    // 3. Dessiner les contours horizontaux (sol et plafond) en couleur discrète
+    this.drawPolygonLoop(bottomPoints, container, '#8a2be2', 0.8);
+    this.drawPolygonLoop(topPoints, container, '#8a2be2', 0.6);
     
     // 4. Dessiner les arêtes verticales (coins) EN ROUGE
     for (let i = 0; i < bottomPoints.length; i++) {
@@ -316,10 +338,10 @@ AFRAME.registerComponent('room-detection', {
         topPoints[i]
       ]);
       const lineMat = new THREE.LineBasicMaterial({ 
-        color: 0xff0000, 
+        color: 0x8a2be2, 
         transparent: true, 
-        opacity: 1.0,
-        linewidth: 2
+        opacity: 0.9,
+        linewidth: 1
       });
       const line = new THREE.Line(lineGeom, lineMat);
       this.el.sceneEl.object3D.add(line);
@@ -338,9 +360,9 @@ AFRAME.registerComponent('room-detection', {
     shapeGeom.rotateX(-Math.PI / 2);
     
     const shapeMat = new THREE.MeshBasicMaterial({
-      color: 0xff0000,
+      color: 0x8a2be2,
       transparent: true,
-      opacity: 0.15,
+      opacity: 0.06,
       side: THREE.DoubleSide,
       depthWrite: false
     });
@@ -361,10 +383,10 @@ AFRAME.registerComponent('room-detection', {
     const closedPoints = [...points, points[0]];
     const lineGeom = new THREE.BufferGeometry().setFromPoints(closedPoints);
     const lineMat = new THREE.LineBasicMaterial({ 
-      color: color, 
+      color: color || '#ffaa00', 
       transparent: true, 
-      opacity: opacity,
-      linewidth: 3
+      opacity: (typeof opacity === 'number') ? opacity : 0.6,
+      linewidth: 1
     });
     const line = new THREE.Line(lineGeom, lineMat);
     this.el.sceneEl.object3D.add(line);
@@ -385,7 +407,8 @@ AFRAME.registerComponent('room-detection', {
     box.setAttribute('width', width);
     box.setAttribute('height', data.height);
     box.setAttribute('depth', depth);
-    box.setAttribute('material', 'color: #ff0000; opacity: 0.3; transparent: true; wireframe: true; side: double');
+    // rendre la box discrète (contour jaune-orangée faible)
+    box.setAttribute('material', 'color: #ffaa00; opacity: 0.06; transparent: true; wireframe: true; side: double');
     box.setAttribute('geometry', 'primitive: box');
     
     console.log('📦 ZONE ROUGE créée (bounds du sol) :');
@@ -874,11 +897,13 @@ AFRAME.registerComponent('room-detection', {
     let minZ = Infinity, maxZ = -Infinity;
     let minY = Infinity, maxY = -Infinity;
 
+    let transformedPoints = [];
     if (polygon && polygon.length > 0) {
       let sumY = 0;
       polygon.forEach(v => {
         const vec = new THREE.Vector3(v.x, v.y, v.z);
         vec.applyMatrix4(matrix);
+        transformedPoints.push({ x: vec.x, y: vec.y, z: vec.z });
         sumY += vec.y;
         minX = Math.min(minX, vec.x);
         maxX = Math.max(maxX, vec.x);
@@ -901,51 +926,41 @@ AFRAME.registerComponent('room-detection', {
     planeData.dimensions = { width: planeWidth, depth: planeDepth, area: planeArea };
     planeData.bounds = { minX, maxX, minY, maxY, minZ, maxZ };
 
-    // Classification AMÉLIORÉE POUR LES TABLES
+    // Handle horizontal planes: detect tables/obstacles, otherwise record as horizontal candidate
     if (plane.orientation === 'horizontal') {
-      if (avgY < 0.3) {
-        // SOL - hauteur basse
-        this.floorPlanes.push({ plane, data: planeData });
-        this.floorY = Math.max(this.floorY, avgY);
+      const isFlat = heightVariance < 0.15;
+      const isTableSize = planeArea >= 0.12;
+      // Base de référence pour la hauteur (si des hit-tests ont mis à jour roomBounds)
+      const baseY = (this.roomBounds && isFinite(this.roomBounds.minY)) ? this.roomBounds.minY : 0;
+      const relY = avgY - baseY;
+
+      // Table: hauteur relative entre ~0.35 et 1.4m (tolérance élargie) + taille suffisante + plat
+      const isTableHeight = relY >= 0.35 && relY <= 1.4;
+
+      if (isTableHeight && isTableSize && isFlat) {
+        planeData.obstacleType = 'table';
+        this.obstaclePlanes.push({ plane, data: planeData });
         if (this.data.debug) {
-          console.log(`🟢 SOL: y=${avgY.toFixed(2)}m, size=${planeArea.toFixed(2)}m²`);
-        }
-      } else if (avgY > 2.0) {
-        // PLAFOND - hauteur haute
-        this.ceilingPlanes.push({ plane, data: planeData });
-        if (this.data.debug) {
-          console.log(`🔵 PLAFOND: y=${avgY.toFixed(2)}m`);
+          console.log(`🟡 TABLE DÉTECTÉE: relY=${relY.toFixed(2)}m, area=${planeArea.toFixed(2)}m²`);
+          console.log('    vertices Y (world):', transformedPoints.map(p => p.y.toFixed(2)).join(', '));
         }
       } else {
-        // OBSTACLE (tables, meubles) - hauteur intermédiaire
-        let type = 'obstacle';
-
-        // DÉTECTION AMÉLIORÉE DES TABLES
-        // Critères : hauteur + aire + surface plate
-        const isTableHeight = avgY >= 0.50 && avgY <= 1.1;
-        const isTableSize = planeArea >= 0.12;  // Réduit de 0.2 à 0.12
-        const isFlat = heightVariance < 0.15;   // Surface plate
-
-        if (isTableHeight && isTableSize && isFlat) {
-          type = 'table';
+        // Possible floor: si très grand et proche du minY (ou très proche du sol)
+        if ((planeArea >= 0.6 && relY < 0.6) || relY < 0.25) {
+          planeData.guessType = 'floor_candidate';
+          this.floorPlanes.push({ plane, data: planeData });
+          this.floorY = Math.max(this.floorY, avgY);
           if (this.data.debug) {
-            console.log(`🟡 TABLE DÉTECTÉE: y=${avgY.toFixed(2)}m, ${planeWidth.toFixed(2)}x${planeDepth.toFixed(2)}m, area=${planeArea.toFixed(2)}m²`);
+            console.log(`🟢 SOL candidate: relY=${relY.toFixed(2)}m, area=${planeArea.toFixed(2)}m²`);
+            console.log('    vertices Y (world):', transformedPoints.map(p => p.y.toFixed(2)).join(', '));
           }
-        }
-        // Sous-classification pour les autres obstacles
-        else if (avgY >= 0.25 && avgY < 0.50) {
-          type = 'meuble_bas';
-        } else if (avgY > 1.1 && avgY <= 1.4) {
-          type = 'etagere';
         } else {
-          type = 'obstacle';
-        }
-
-        planeData.obstacleType = type;
-        this.obstaclePlanes.push({ plane, data: planeData });
-
-        if (this.data.debug && type !== 'table') {
-          console.log(`🟠 ${type.toUpperCase()}: y=${avgY.toFixed(2)}m, ${planeWidth.toFixed(2)}x${planeDepth.toFixed(2)}m`);
+          // Keep as horizontal candidate (could be floor or ceiling)
+          this.horizontalPlanes.push({ plane, data: planeData });
+          if (this.data.debug) {
+            console.log(`⬜ HORIZONTAL candidate: relY=${relY.toFixed(2)}m, area=${planeArea.toFixed(2)}m²`);
+            console.log('    vertices Y (world):', transformedPoints.map(p => p.y.toFixed(2)).join(', '));
+          }
         }
       }
     } else if (plane.orientation === 'vertical') {
@@ -1076,13 +1091,16 @@ AFRAME.registerComponent('room-detection', {
     const geometry = new THREE.ShapeGeometry(shape);
     geometry.rotateX(-Math.PI / 2);
 
-    // Couleur selon le type de plan
+    // Couleur selon le type de plan (utiliser hauteur relative au sol si possible)
     let color, opacity;
     if (plane.orientation === 'horizontal') {
-      if (centerWorld.y < 0.25) {
+      const worldY = (planeData.worldY !== undefined) ? planeData.worldY : centerWorld.y;
+      const baseY = (this.floorY !== undefined && this.floorY !== 0) ? this.floorY : ((this.roomBounds && isFinite(this.roomBounds.minY)) ? this.roomBounds.minY : 0);
+      const relY = worldY - baseY;
+      if (relY < 0.3) {
         color = 0x00ff00; // Sol = vert vif
         opacity = 0.35;
-      } else if (centerWorld.y > 2.2) {
+      } else if (relY > 2.0) {
         color = 0x00ffff; // Plafond = cyan
         opacity = 0.2;
       } else {
@@ -1173,6 +1191,27 @@ AFRAME.registerComponent('room-detection', {
     this.scanText.setAttribute('value', details);
   },
 
+  showStartButton: function () {
+    console.log('🎮 Affichage du bouton de démarrage');
+    
+    // Masquer le panneau de scan
+    if (this.scanPanel) {
+      this.scanPanel.setAttribute('visible', 'false');
+    }
+    
+    // Afficher le bouton 3D en VR
+    const startButton3D = document.querySelector('#start-button-3d');
+    if (startButton3D) {
+      startButton3D.setAttribute('visible', 'true');
+    }
+    
+    // Afficher le bouton HTML pour PC
+    const startButtonHTML = document.getElementById('start-game-button');
+    if (startButtonHTML) {
+      startButtonHTML.style.display = 'block';
+    }
+  },
+
   clearPlaneVisuals: function () {
     this.planeMeshes.forEach(mesh => {
       this.el.sceneEl.object3D.remove(mesh);
@@ -1215,8 +1254,18 @@ AFRAME.registerComponent('room-detection', {
     this.scanText.setAttribute('value', `${totalPlanes} surfaces\nAdaptation eau...`);
     this.progressBar.setAttribute('color', '#00ff00');
 
+    // AFFICHER LE BOUTON DE DÉMARRAGE APRÈS LE SCAN
+    setTimeout(() => {
+      this.showStartButton();
+    }, 1500);
+
     // CALCUL AMÉLIORÉ : Utiliser le sol le plus grand pour définir la zone
     let roomData = null;
+    // Debug: log horizontal candidates (if any)
+    if (this.horizontalPlanes && this.horizontalPlanes.length > 0) {
+      const sortedCandidates = this.horizontalPlanes.slice().sort((a,b) => (b.data.dimensions?.area||0) - (a.data.dimensions?.area||0));
+      this.logHorizontalCandidates(sortedCandidates);
+    }
     
     if (this.floorPlanes.length > 0) {
       // Trouver le plus grand sol
@@ -1240,10 +1289,14 @@ AFRAME.registerComponent('room-detection', {
       const centerX = (floorBounds.minX + floorBounds.maxX) / 2;
       const centerZ = (floorBounds.minZ + floorBounds.maxZ) / 2;
       
-      // Hauteur basée sur les murs ou valeur par défaut
-      let height = this.roomBounds.maxY - this.floorY;
-      if (!isFinite(height) || height < 1.5) height = 2.5;
-      height = Math.min(height, 4.0); // Limiter à 4m max
+      // Hauteur réelle de la pièce basée sur plafond détecté ou bounds globaux
+      let realHeight = this.roomBounds.maxY - this.floorY;
+      if (!isFinite(realHeight) || realHeight < 1.5) realHeight = 2.5;
+      realHeight = Math.min(realHeight, 4.0);
+
+      // Hauteur utilisée pour la zone de spawn des poissons (valeur pratique)
+      let spawnHeight = Math.min(1.6, Math.max(1.2, realHeight - 0.6));
+      if (spawnHeight > realHeight) spawnHeight = Math.max(1.0, realHeight - 0.2);
       
       console.log('📐 Dimensions basées sur le sol principal:');
       console.log(`   - Aire du sol: ${maxArea.toFixed(2)}m²`);
@@ -1256,7 +1309,8 @@ AFRAME.registerComponent('room-detection', {
       roomData = {
         width: width,
         depth: depth,
-        height: height,
+        height: realHeight,
+        spawnHeight: spawnHeight,
         centerX: centerX,
         centerZ: centerZ,
         floorY: this.floorY,
@@ -1313,7 +1367,8 @@ AFRAME.registerComponent('room-detection', {
       window.FISH_ZONE.roomBounds = roomData.bounds;
       window.FISH_ZONE.orientedBox = roomData.orientedBox || null;
       window.FISH_ZONE.floorY = roomData.floorY;
-      window.FISH_ZONE.ceilingY = roomData.floorY + roomData.height;
+      // Use spawnHeight for fish ceiling so fish stay within the intended play volume
+      window.FISH_ZONE.ceilingY = roomData.floorY + (roomData.spawnHeight || roomData.height);
       window.FISH_ZONE.scanned = true;
     }
 
@@ -1323,6 +1378,7 @@ AFRAME.registerComponent('room-detection', {
       width: roomData.width,
       depth: roomData.depth,
       height: roomData.height,
+      spawnHeight: roomData.spawnHeight,
       centerX: roomData.centerX,
       centerZ: roomData.centerZ,
       floorY: roomData.floorY,
@@ -1373,6 +1429,62 @@ AFRAME.registerComponent('room-detection', {
     };
 
     fade();
+  },
+
+  // Debug helper: log horizontal candidates with their worldY and area
+  logHorizontalCandidates: function(sortedCandidates) {
+    if (!this.data.debug) return;
+    console.log('🔎 Horizontal candidates (worldY / area):');
+    sortedCandidates.forEach((c, i) => {
+      const y = (c.data.worldY || 0).toFixed(2);
+      const area = ((c.data.dimensions && c.data.dimensions.area) || 0).toFixed(2);
+      console.log(`   ${i}: y=${y}m | area=${area}m²`);
+    });
+  },
+
+  // Debug helper: create a short pulsing highlight on the detected floor polygon
+  highlightDetectedFloor: function(floorData) {
+    if (!floorData || !floorData.polygon || !floorData.pose) return;
+    // Create shape geometry from polygon local coords
+    const polygon = floorData.polygon;
+    const matrix = new THREE.Matrix4();
+    matrix.fromArray(floorData.pose.transform.matrix);
+
+    const shape = new THREE.Shape();
+    shape.moveTo(polygon[0].x, polygon[0].z);
+    for (let i = 1; i < polygon.length; i++) shape.lineTo(polygon[i].x, polygon[i].z);
+    shape.closePath();
+
+    const geom = new THREE.ShapeGeometry(shape);
+    geom.rotateX(-Math.PI / 2);
+
+    const mat = new THREE.MeshBasicMaterial({ color: 0x8a2be2, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false });
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.matrixAutoUpdate = false;
+    mesh.matrix.copy(matrix);
+    mesh.name = 'debug-floor-highlight';
+
+    this.el.sceneEl.object3D.add(mesh);
+    this.planeMeshes.push(mesh);
+
+    // Pulse opacity a few times then remove
+    let pulses = 0;
+    const maxPulses = 4;
+    const pulseInterval = 350;
+    const intervalId = setInterval(() => {
+      mesh.material.opacity = mesh.material.opacity === 0.25 ? 0.65 : 0.25;
+      pulses++;
+      if (pulses >= maxPulses) {
+        clearInterval(intervalId);
+        try {
+          this.el.sceneEl.object3D.remove(mesh);
+          const idx = this.planeMeshes.indexOf(mesh);
+          if (idx >= 0) this.planeMeshes.splice(idx, 1);
+          if (mesh.geometry) mesh.geometry.dispose();
+          if (mesh.material) mesh.material.dispose();
+        } catch (e) { /* ignore */ }
+      }
+    }, pulseInterval);
   },
 
   remove: function () {

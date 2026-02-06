@@ -274,8 +274,30 @@ AFRAME.registerComponent('grab-manager', {
             try {
               const other = (evt && (evt.detail && evt.detail.body && evt.detail.body.el)) || (evt && evt.detail && evt.detail.target) || evt.detail && evt.detail.el;
               const otherEl = other && other.el ? other.el : other;
-              if (otherEl && otherEl.classList && otherEl.classList.contains('fish-target')) {
+              if (otherEl && otherEl.classList && otherEl.classList.contains('fish-target') && !otherEl.dataset.caught) {
+                // Vérifier si le jeu est actif
+                if (!window.gameTimer || !window.gameTimer.isGameActive()) {
+                  console.log('⚠️ Partie non démarrée - collision ignorée');
+                  return;
+                }
+                
                 console.log('💥 Harpon collision detected with fish');
+                
+                // Marquer comme attrapé
+                otherEl.dataset.caught = 'true';
+                
+                // Déterminer le type de poisson
+                const fishType = otherEl.classList.contains('fish-piranha') ? 'piranha' : 'poisson';
+                
+                // Déterminer si c'est le poisson bonus
+                const isBonus = (otherEl.dataset && otherEl.dataset.bonus === 'true') || (otherEl.classList && otherEl.classList.contains('fish-bonus'));
+                const pointsEarned = isBonus ? 10 : 1;
+                
+                // Enregistrer dans le système de score
+                if (window.gameTimer && typeof window.gameTimer.addCaughtFish === 'function') {
+                  window.gameTimer.addCaughtFish(fishType, isBonus, pointsEarned);
+                }
+                
                 otherEl.setAttribute('visible', 'false');
                 setTimeout(() => { if (otherEl.parentNode) otherEl.parentNode.removeChild(otherEl); }, 80);
                 // gentle slow-down on collision but keep some motion
@@ -404,8 +426,30 @@ AFRAME.registerComponent('grab-manager', {
         const fishPos = new THREE.Vector3();
         fish.object3D.getWorldPosition(fishPos);
         const dist = tipPos.distanceTo(fishPos);
-        if (dist < this.collisionRadius) {
+        if (dist < this.collisionRadius && !fish.dataset.caught) {
+          // Vérifier si le jeu est actif
+          if (!window.gameTimer || !window.gameTimer.isGameActive()) {
+            console.log('⚠️ Partie non démarrée - poisson ignoré');
+            break;
+          }
+          
           console.log('🎯 Harpon touché un poisson!');
+          
+          // Marquer comme attrapé
+          fish.dataset.caught = 'true';
+          
+          // Déterminer le type de poisson
+          const fishType = fish.classList.contains('fish-piranha') ? 'piranha' : 'poisson';
+          
+          // Déterminer si c'est le poisson bonus
+          const isBonus = (otherEl && otherEl.dataset && otherEl.dataset.bonus === 'true') || (otherEl && otherEl.classList && otherEl.classList.contains('fish-bonus'));
+          const pointsEarned = isBonus ? 10 : 1;
+          
+          // Enregistrer dans le système de score
+          if (window.gameTimer && typeof window.gameTimer.addCaughtFish === 'function') {
+            window.gameTimer.addCaughtFish(fishType, isBonus, pointsEarned);
+          }
+          
           fish.setAttribute('visible', 'false');
           setTimeout(() => {
             if (fish.parentNode) fish.parentNode.removeChild(fish);
@@ -499,8 +543,30 @@ AFRAME.registerComponent('grab-manager', {
       fish.object3D.getWorldPosition(fishPos);
       const distance = tipPos.distanceTo(fishPos);
       
-      if (distance < this.collisionRadius) {
+      if (distance < this.collisionRadius && !fish.dataset.caught) {
+        // Vérifier si le jeu est actif AVANT de compter le poisson
+        if (!window.gameTimer || !window.gameTimer.isGameActive()) {
+          console.log('⚠️ Partie non démarrée - poisson ignoré');
+          return;
+        }
+        
         console.log('🎯 Poisson attrapé!');
+        
+        // Marquer comme attrapé pour éviter les doublons
+        fish.dataset.caught = 'true';
+        
+        // Déterminer le type de poisson
+        const fishType = fish.classList.contains('fish-piranha') ? 'piranha' : 'poisson';
+        
+        // Déterminer si c'est le poisson bonus
+        const isBonus = (fish.dataset && fish.dataset.bonus === 'true') || (fish.classList && fish.classList.contains('fish-bonus'));
+        const pointsEarned = isBonus ? 10 : 1;
+        
+        // Enregistrer dans le système de score
+        if (window.gameTimer && typeof window.gameTimer.addCaughtFish === 'function') {
+          window.gameTimer.addCaughtFish(fishType, isBonus, pointsEarned);
+        }
+        
         // Make fish disappear
         fish.setAttribute('visible', 'false');
         // Remove after animation
