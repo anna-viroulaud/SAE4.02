@@ -462,16 +462,42 @@ AFRAME.registerComponent('grab-manager', {
     this.lastHandPos = handPos.clone();
     this.lastHandTime = now;
     
+    // Vérifier l'orientation de la main avec le vecteur UP
+    const handUp = new THREE.Vector3(0, 1, 0).applyQuaternion(handQuat);
+    const isFlipped = handUp.y < 0;
+    
+    // Ajuster l'offset en fonction de la rotation
+    let currentOffset = this.offset.clone();
+    if (isFlipped) {
+      // Quand la main est retournée, inverser l'offset pour garder la main sur le manche
+      currentOffset.set(0, 0, 0.2); // Offset inversé
+    }
+    
     // Apply offset in hand's local space
-    const offsetWorld = this.offset.clone().applyQuaternion(handQuat);
+    const offsetWorld = currentOffset.applyQuaternion(handQuat);
     const targetPos = handPos.clone().add(offsetWorld);
     
     // Move spear to follow hand
     this.grabbedSpear.object3D.position.copy(targetPos);
     
-    // Rotate spear 180 degrees on Y axis to flip it
-    const flipRotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
-    this.grabbedSpear.object3D.quaternion.copy(handQuat).multiply(flipRotation);
+    // Log pour déboguer (optionnel, limité à une fois toutes les 500ms)
+    if (!this.logTimer || Date.now() - this.logTimer > 500) {
+      console.log('🖐️ handUp.y:', handUp.y.toFixed(2), '| Flipped:', isFlipped);
+      this.logTimer = Date.now();
+    }
+    
+    // Orientation de base : flip 180° sur Y (pour que la lance soit bien orientée)
+    const baseRotation = handQuat.clone();
+    const flipY = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
+    baseRotation.multiply(flipY);
+    
+    // Si la main est retournée (> 90°), ajouter une rotation de 180° autour de l'axe X
+    if (isFlipped) {
+      const flipX = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI);
+      baseRotation.multiply(flipX);
+    }
+    
+    this.grabbedSpear.object3D.quaternion.copy(baseRotation);
     
     // Check collision with fish targets
     this.checkFishCollision();
