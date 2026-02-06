@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jeu de Pêche XR - SAE 4.02</title>
+
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
+  <script
+    src="https://cdn.jsdelivr.net/gh/c-frame/aframe-physics-system@4.0.1/dist/aframe-physics-system.min.js"></script>
+
+  <script src="src/components/water-effect.js"></script>
+  <script src="src/components/fish-rotator.js"></script>
+  <script src="src/components/grab-manager.js"></script>
+  <script src="src/systems/game-timer.js"></script>
+
+  <link rel="stylesheet" href="src/styles/style.css">
+</head>
+
+<body>
+  <!-- Chronomètre en jeu -->
+  <div id="timer-display" style="display: none;">1:00</div>
+
+  <!-- Overlay AR -->
+  <div id="ar-overlay">
+    <button id="ar-button">Entrer en AR 🥽</button>
+    <!-- Bouton masqué - version 3D utilisée en XR -->
+    <button id="start-game-button" style="margin-left: 10px; display: none;">Lancer la partie ▶️</button>
+  </div>
+
+  <!-- Écran de fin de jeu avec tableau récapitulatif -->
+  <div id="end-game-screen">
+    <div class="end-game-container">
+      <div class="end-game-header">
+        <h1>🎣 FIN DE LA PARTIE 🎣</h1>
+        <h2 style="color: #FFD700; font-size: 1.5em; margin: 10px 0 0 0;">Poissons attrapés</h2>
+      </div>
+
+      <div class="score-table-wrapper">
+        <table id="score-table">
+          <thead>
+            <tr>
+              <th>Type de poisson</th>
+              <th>Quantité</th>
+              <th>Points</th>
+            </tr>
+          </thead>
+          <tbody id="score-table-body">
+            <!-- Les lignes seront générées par JavaScript -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="end-game-buttons">
+        <button class="btn-end btn-restart" id="btn-restart">🔄 Rejouer</button>
+        <button class="btn-end btn-quit" id="btn-quit">❌ Quitter</button>
+      </div>
+    </div>
+  </div>
+
+  <a-scene webxr="referenceSpaceType: local-floor; overlayElement: #ar-overlay;" grab-manager physics="gravity: 0"
+    renderer="colorManagement: true; alpha: true; antialias: true; sortTransparentObjects: true">
+
+    <a-assets>
+      <a-asset-item id="spear-model" src="assets/models/stylized_low-poly_spear.glb"></a-asset-item>
+      <a-asset-item id="low_poly_fish" src="assets/models/low_poly_fish.glb"></a-asset-item>
+      <a-asset-item id="piranha" src="assets/models/piranha.glb"></a-asset-item>
+    </a-assets>
+
+    <a-entity id="cameraRig">
+      <a-camera id="head" look-controls>
+
+        <a-entity id="bonus-fish" position="-0.15 0.2 -0.7" scale="0.8 0.8 0.8" visible="false">
+          <a-plane color="#1a1a1a" opacity="0.9" width="0.38" height="0.28" position="0 0 -0.015"></a-plane>
+
+          <a-box color="#FFD700" width="0.38" height="0.015" depth="0.01" position="0 0.14 0"
+            material="metalness: 0.8; roughness: 0.2"></a-box>
+          <a-box color="#FFD700" width="0.38" height="0.015" depth="0.01" position="0 -0.14 0"
+            material="metalness: 0.8; roughness: 0.2"></a-box>
+          <a-box color="#FFD700" width="0.015" height="0.295" depth="0.01" position="-0.185 0 0"
+            material="metalness: 0.8; roughness: 0.2"></a-box>
+          <a-box color="#FFD700" width="0.015" height="0.295" depth="0.01" position="0.185 0 0"
+            material="metalness: 0.8; roughness: 0.2"></a-box>
+
+          <a-entity position="0 0 0.03">
+            <a-entity id="fish-3d" gltf-model="#low_poly_fish" position="0.05 0.02 0" rotation="0 90 0"
+              scale="0.02 0.02 0.02" fish-rotator="interval: 60000">
+            </a-entity>
+
+            <a-text value="À PÊCHER" align="center" color="#FFD700" width="0.8" position="0.02 -0.08 0.01" font="roboto">
+            </a-text>
+          </a-entity>
+        </a-entity>
+
+        <!-- Score affiché sous le panneau -->
+        <a-text id="score-display" value="Poissons: 0" position="-0.15 0.0 -0.7" align="center"
+          color="#FFD700" width="0.6" font="roboto" shader="msdf" visible="false"></a-text>
+
+        <!-- Chronomètre en 3D visible en VR -->
+        <a-entity id="timer-3d" position="0.25 0.25 -0.7" scale="0.6 0.6 0.6" visible="false">
+          <a-plane color="#000000" opacity="0.8" width="0.25" height="0.12" position="0 0 -0.01"></a-plane>
+          <a-text id="timer-text" value="1:00" align="center" color="#FFD700" width="0.8" position="0 0 0"></a-text>
+        </a-entity>
+
+        <!-- Bouton "Jouer" en 3D visible en VR -->
+        <a-entity id="start-button-3d" position="0 -0.1 -0.7" visible="true">
+          <a-box class="clickable" color="#3498db" width="0.45" height="0.12" depth="0.03" 
+            animation__hover="property: scale; from: 1 1 1; to: 1.1 1.1 1.1; startEvents: mouseenter; dur: 200"
+            animation__leave="property: scale; from: 1.1 1.1 1.1; to: 1 1 1; startEvents: mouseleave; dur: 200">
+            <a-text value="▶ JOUER" align="center" color="#ffffff" width="1.2" position="0 0 0.02"></a-text>
+          </a-box>
+        </a-entity>
+
+        <!-- Écran de fin de jeu en 3D -->
+        <a-entity id="end-screen-3d" position="0 0 -1.5" visible="false">
+          <!-- Fond du panneau -->
+          <a-plane color="#1a1a2e" opacity="0.95" width="1.2" height="1.6" position="0 0 -0.02"
+            material="shader: flat"></a-plane>
+          
+          <!-- Bordure dorée -->
+          <a-box color="#FFD700" width="1.2" height="0.02" depth="0.01" position="0 0.8 0"></a-box>
+          <a-box color="#FFD700" width="1.2" height="0.02" depth="0.01" position="0 -0.8 0"></a-box>
+          <a-box color="#FFD700" width="0.02" height="1.6" depth="0.01" position="-0.6 0 0"></a-box>
+          <a-box color="#FFD700" width="0.02" height="1.6" depth="0.01" position="0.6 0 0"></a-box>
+
+          <!-- Titre -->
+          <a-text value="🎣 FIN DE LA PARTIE 🎣" align="center" color="#FFD700" width="1.8" position="0 0.65 0"></a-text>
+          <a-text value="Poissons attrapés" align="center" color="#FFD700" width="1.5" position="0 0.52 0"></a-text>
+          
+          <!-- Le tableau sera généré dynamiquement ici par populateScoreTable3D() -->
+          
+          <!-- Boutons interactifs -->
+          <a-box id="btn-restart-3d" class="clickable" color="#FFD700" width="0.45" height="0.12" depth="0.03" 
+            position="-0.25 -0.65 0.02"
+            animation__hover="property: scale; from: 1 1 1; to: 1.1 1.1 1.1; startEvents: mouseenter; dur: 200"
+            animation__leave="property: scale; from: 1.1 1.1 1.1; to: 1 1 1; startEvents: mouseleave; dur: 200">
+            <a-text value="🔄 REJOUER" align="center" color="#000000" width="1.2" position="0 0 0.02"></a-text>
+          </a-box>
+          
+          <a-box id="btn-quit-3d" class="clickable" color="#e74c3c" width="0.45" height="0.12" depth="0.03" 
+            position="0.25 -0.65 0.02"
+            animation__hover="property: scale; from: 1 1 1; to: 1.1 1.1 1.1; startEvents: mouseenter; dur: 200"
+            animation__leave="property: scale; from: 1.1 1.1 1.1; to: 1 1 1; startEvents: mouseleave; dur: 200">
+            <a-text value="❌ QUITTER" align="center" color="#ffffff" width="1.2" position="0 0 0.02"></a-text>
+          </a-box>
+        </a-entity>
+      </a-camera>
+    </a-entity>
+
+    <a-entity id="world-anchor">
+
+      <a-entity id="water-surface" position="0 0 -2" visible="false"
+        animation="property: position; from: 0 0 -2; to: 0 2.5 -2; dur: 10000; easing: easeInOutQuad; autoplay: false">
+        <a-entity id="water-fluid"
+          water-shader="color: #0088cc; opacity: 0.65; speed: 1.5; waveHeight: 0.08; waveFrequency: 1.5"></a-entity>
+        <a-entity position="0 -0.05 0"
+          water-shader="color: #00aaff; opacity: 0.3; speed: 0.8; waveHeight: 0.05; waveFrequency: 2.0"></a-entity>
+      </a-entity>
+
+      <a-entity id="bubbles" position="0 0 -2" visible="false">
+        <a-sphere position="-0.5 0.2 0" radius="0.05" color="#ffffff" opacity="0.5"
+          animation="property: position; from: -0.5 0.2 0; to: -0.5 2.7 0; dur: 8000; easing: linear"></a-sphere>
+        <a-sphere position="0.3 0.1 -0.5" radius="0.03" color="#ffffff" opacity="0.4"
+          animation="property: position; from: 0.3 0.1 -0.5; to: 0.3 2.6 -0.5; dur: 7000; easing: linear; delay: 500"></a-sphere>
+        <a-sphere position="0 0.3 0.3" radius="0.04" color="#ffffff" opacity="0.5"
+          animation="property: position; from: 0 0.3 0.3; to: 0 2.8 0.3; dur: 9000; easing: linear; delay: 1000"></a-sphere>
+        <a-sphere position="0.7 0.15 -0.2" radius="0.035" color="#ffffff" opacity="0.4"
+          animation="property: position; from: 0.7 0.15 -0.2; to: 0.7 2.65 -0.2; dur: 7500; easing: linear; delay: 300"></a-sphere>
+        <a-sphere position="-0.3 0.25 0.5" radius="0.045" color="#ffffff" opacity="0.5"
+          animation="property: position; from: -0.3 0.25 0.5; to: -0.3 2.75 0.5; dur: 8500; easing: linear; delay: 700"></a-sphere>
+      </a-entity>
+
+      <a-light type="ambient" color="#ffffff" intensity="0.6"></a-light>
+      <a-light type="directional" color="#ffffff" intensity="0.8" position="1 2 1"></a-light>
+      <a-light type="point" color="#0088ff" intensity="0.5" position="0 0.5 -2"></a-light>
+
+      <a-entity id="spear" class="fish" position="0 1.45 -0.6" rotation="0 90 0" gltf-model="#spear-model"
+        scale="0.5 0.5 0.5" visible="false">
+      </a-entity>
+
+      <a-entity class="fish-target" data-fish-type="low_poly_fish" position="-1.4 1.0 -1.2" gltf-model="#low_poly_fish" scale="0.08 0.08 0.08"
+        rotation="0 45 0" visible="false"
+        animation="property: position; to: -1.2 1.2 -1.5; dur: 3000; easing: easeInOutSine; loop: true; dir: alternate"
+        animation__rotate="property: rotation; to: 0 90 0; dur: 3000; easing: easeInOutSine; loop: true; dir: alternate"></a-entity>
+      <a-entity class="fish-target" data-fish-type="piranha" position="1.4 2.2 -2.4" gltf-model="#piranha" scale="0.08 0.08 0.08"
+        rotation="0 -60 0" visible="false"
+        animation="property: position; to: 1.2 1.9 -2.6; dur: 3500; easing: easeInOutSine; loop: true; dir: alternate"
+        animation__rotate="property: rotation; to: 0 -120 0; dur: 3500; easing: easeInOutSine; loop: true; dir: alternate"></a-entity>
+      <a-entity class="fish-target" data-fish-type="low_poly_fish" position="0.2 1.6 -3.1" gltf-model="#low_poly_fish" scale="0.08 0.08 0.08"
+        rotation="0 0 0" visible="false"
+        animation="property: position; to: -0.1 1.7 -3.3; dur: 4000; easing: easeInOutSine; loop: true; dir: alternate"
+        animation__rotate="property: rotation; to: 0 60 0; dur: 4000; easing: easeInOutSine; loop: true; dir: alternate"></a-entity>
+      <a-entity class="fish-target" data-fish-type="piranha" position="-1.3 2.3 -2.7" gltf-model="#piranha" scale="0.08 0.08 0.08"
+        rotation="0 30 0" visible="false"
+        animation="property: position; to: -1.1 2.0 -2.9; dur: 3200; easing: easeInOutSine; loop: true; dir: alternate"
+        animation__rotate="property: rotation; to: 0 -30 0; dur: 3200; easing: easeInOutSine; loop: true; dir: alternate"></a-entity>
+      <a-entity class="fish-target" data-fish-type="low_poly_fish" position="1.3 1.1 -0.9" gltf-model="#low_poly_fish" scale="0.08 0.08 0.08"
+        rotation="0 -90 0" visible="false"
+        animation="property: position; to: 1.5 1.4 -1.1; dur: 2800; easing: easeInOutSine; loop: true; dir: alternate"
+        animation__rotate="property: rotation; to: 0 -150 0; dur: 2800; easing: easeInOutSine; loop: true; dir: alternate"></a-entity>
+      <a-entity class="fish-target" data-fish-type="piranha" position="-0.7 1.9 -1.0" gltf-model="#piranha" scale="0.08 0.08 0.08"
+        rotation="0 75 0" visible="false"
+        animation="property: position; to: -0.5 1.6 -1.2; dur: 3100; easing: easeInOutSine; loop: true; dir: alternate"
+        animation__rotate="property: rotation; to: 0 135 0; dur: 3100; easing: easeInOutSine; loop: true; dir: alternate"></a-entity>
+      <a-entity class="fish-target" data-fish-type="low_poly_fish" position="0.9 1.3 -2.8" gltf-model="#low_poly_fish" scale="0.08 0.08 0.08"
+        rotation="0 -45 0" visible="false"
+        animation="property: position; to: 0.7 1.6 -3.0; dur: 3600; easing: easeInOutSine; loop: true; dir: alternate"
+        animation__rotate="property: rotation; to: 0 -105 0; dur: 3600; easing: easeInOutSine; loop: true; dir: alternate"></a-entity>
+      <a-entity class="fish-target" data-fish-type="piranha" position="-0.4 1.4 -2.0" gltf-model="#piranha" scale="0.08 0.08 0.08"
+        rotation="0 15 0" visible="false"
+        animation="property: position; to: -0.6 1.7 -2.2; dur: 2900; easing: easeInOutSine; loop: true; dir: alternate"
+        animation__rotate="property: rotation; to: 0 75 0; dur: 2900; easing: easeInOutSine; loop: true; dir: alternate"></a-entity>
+    </a-entity>
+
+    <a-entity id="leftHand" hand-controls="hand: left; handModelStyle: lowPoly; color: #15ACCF" 
+      laser-controls raycaster="objects: .clickable; far: 10"></a-entity>
+    <a-entity id="rightHand" hand-controls="hand: right; handModelStyle: lowPoly; color: #15ACCF" 
+      laser-controls raycaster="objects: .clickable; far: 10"></a-entity>
+
+  </a-scene>
+
+  <script src="src/systems/game-manager.js"></script>
+</body>
+
+</html>
